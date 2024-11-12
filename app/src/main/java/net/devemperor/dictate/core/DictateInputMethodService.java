@@ -414,40 +414,6 @@ public class DictateInputMethodService extends InputMethodService {
             return true;
         });
 
-        enterButton.setOnTouchListener((v, event) -> {
-            if (overlayCharactersLl.getVisibility() == View.VISIBLE) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_MOVE:
-                        for (int i = 0; i < overlayCharactersLl.getChildCount(); i++) {
-                            TextView charView = (TextView) overlayCharactersLl.getChildAt(i);
-                            if (isPointInsideView(event.getRawX(), charView)) {
-                                if (selectedCharacter != charView) {
-                                    selectedCharacter = charView;
-                                    highlightSelectedCharacter(selectedCharacter);
-                                }
-                                break;
-                            }
-                        }
-                        break;
-                    case MotionEvent.ACTION_UP:
-                        if (selectedCharacter != null) {
-                            InputConnection inputConnection = getCurrentInputConnection();
-                            if (inputConnection != null) {
-                                inputConnection.commitText(selectedCharacter.getText(), 1);
-                            }
-                            selectedCharacter.setBackground(AppCompatResources.getDrawable(this, R.drawable.border_textview));
-                            selectedCharacter = null;
-                        }
-                        overlayCharactersLl.setVisibility(View.GONE);
-                        return true;
-                    case MotionEvent.ACTION_CANCEL:
-                        overlayCharactersLl.setVisibility(View.GONE);
-                        return true;
-                }
-            }
-            return false;
-        });
-
         // initialize overlay characters
         for (int i = 0; i < 8; i++) {
             TextView charView = (TextView) LayoutInflater.from(context).inflate(R.layout.item_overlay_characters, overlayCharactersLl, false);
@@ -567,16 +533,7 @@ public class DictateInputMethodService extends InputMethodService {
         }
 
         // fill all overlay characters
-        String charactersString = sp.getString("net.devemperor.dictate.overlay_characters", "()-:!?,.");
-        for (int i = 0; i < overlayCharactersLl.getChildCount(); i++) {
-            TextView charView = (TextView) overlayCharactersLl.getChildAt(i);
-            if (i >= charactersString.length()) {
-                charView.setVisibility(View.GONE);
-            } else {
-                charView.setVisibility(View.VISIBLE);
-                charView.setText(charactersString.substring(i, i + 1));
-            }
-        }
+        initializeOverlayCharacters();
 
         // get the currently selected input language
         inputLanguages = new HashSet<>(Arrays.asList(getResources().getStringArray(R.array.dictate_default_input_languages)));
@@ -634,6 +591,40 @@ public class DictateInputMethodService extends InputMethodService {
             vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK));
         } else {
             vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE));
+        }
+    }
+
+    private void initializeOverlayCharacters() {
+        String charactersString = sp.getString("net.devemperor.dictate.overlay_characters", "()-:!?,.");
+        if (!charactersString.contains("X")) {
+            charactersString += "X";
+        }
+    
+        for (int i = 0; i < overlayCharactersLl.getChildCount(); i++) {
+            TextView charView = (TextView) overlayCharactersLl.getChildAt(i);
+            if (i >= charactersString.length()) {
+                charView.setVisibility(View.GONE);
+            } else {
+                charView.setVisibility(View.VISIBLE);
+                if (i == charactersString.length() - 1) {
+                    // Make the X button special
+                    charView.setText("✕");
+                    charView.setOnClickListener(v -> {
+                        vibrate();
+                        overlayCharactersLl.setVisibility(View.GONE);
+                    });
+                } else {
+                    final String character = charactersString.substring(i, i + 1);
+                    charView.setText(character);
+                    charView.setOnClickListener(v -> {
+                        vibrate();
+                        InputConnection inputConnection = getCurrentInputConnection();
+                        if (inputConnection != null) {
+                            inputConnection.commitText(character, 1);
+                        }
+                    });
+                }
+            }
         }
     }
 
