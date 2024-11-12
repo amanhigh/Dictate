@@ -241,14 +241,23 @@ public class DictateInputMethodService extends InputMethodService {
 
         recordButton.setOnLongClickListener(v -> {
             vibrate();
-
-            if (!isRecording) {  // open real settings activity to start file picker
-                Intent intent = new Intent(this, DictateSettingsActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                intent.putExtra("net.devemperor.dictate.open_file_picker", true);
-                startActivity(intent);
+            if (!isRecording) {
+                startRecording();
             }
-            return true;
+            return true; // Return true to indicate that the long press is being handled
+        });
+
+        recordButton.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (isRecording) {
+                        stopRecording();
+                    }
+                    return true; // Indicate that the event is being handled
+                default:
+                    return false; // Let other events be handled as usual
+            }
         });
 
         resendButton.setOnClickListener(v -> {
