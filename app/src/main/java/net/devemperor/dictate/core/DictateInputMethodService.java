@@ -280,18 +280,7 @@ public class DictateInputMethodService extends InputMethodService {
                 @Override
                 public void run() {
                     if (isDeleting) {
-                        deleteOneCharacter();
-                        long diff = System.currentTimeMillis() - startDeleteTime;
-                        if (diff > 1500 && currentDeleteDelay == 50) {
-                            vibrate();
-                            currentDeleteDelay = 25;
-                        } else if (diff > 3000 && currentDeleteDelay == 25) {
-                            vibrate();
-                            currentDeleteDelay = 10;
-                        } else if (diff > 5000 && currentDeleteDelay == 10) {
-                            vibrate();
-                            currentDeleteDelay = 5;
-                        }
+                        deleteOneWord();
                         deleteHandler.postDelayed(this, currentDeleteDelay);
                     }
                 }
@@ -1038,6 +1027,32 @@ public class DictateInputMethodService extends InputMethodService {
                 inputConnection.commitText("", 1);
             } else {
                 inputConnection.deleteSurroundingText(1, 0);
+            }
+        }
+    }
+
+    private void deleteOneWord() {
+        InputConnection inputConnection = getCurrentInputConnection();
+        if (inputConnection != null) {
+            CharSequence beforeCursor = inputConnection.getTextBeforeCursor(50, 0);
+            if (beforeCursor != null && beforeCursor.length() > 0) {
+                // Find the last word boundary
+                int deleteLength = 0;
+                boolean foundWord = false;
+                
+                for (int i = beforeCursor.length() - 1; i >= 0; i--) {
+                    char c = beforeCursor.charAt(i);
+                    if (!Character.isWhitespace(c)) {
+                        foundWord = true;
+                    }
+                    if (foundWord && Character.isWhitespace(c)) {
+                        break;
+                    }
+                    deleteLength++;
+                }
+                
+                // Delete the word
+                inputConnection.deleteSurroundingText(deleteLength, 0);
             }
         }
     }
