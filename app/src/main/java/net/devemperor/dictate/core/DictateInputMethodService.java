@@ -550,7 +550,7 @@ public class DictateInputMethodService extends InputMethodService {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
                 } else {
-                    startGPTApiRequest(model);  // another normal prompt clicked
+                    pastePromptText(model); // Replace startGPTApiRequest with pastePromptText
                 }
             });
             promptsRv.setAdapter(promptsAdapter);
@@ -804,6 +804,22 @@ public class DictateInputMethodService extends InputMethodService {
                 recordButton.setEnabled(true);
             });
         });
+    }
+
+    private void pastePromptText(PromptModel model) {
+        InputConnection inputConnection = getCurrentInputConnection();
+        if (inputConnection != null) {
+            String selectedText = inputConnection.getSelectedText(0).toString();
+            
+            // Get the prompt text from the model
+            String promptText = model.getPrompt();
+            
+            // Replace selected text with prompt text
+            if (selectedText != null && !selectedText.isEmpty()) {
+                inputConnection.deleteSurroundingText(selectedText.length(), 0);
+            }
+            inputConnection.commitText(promptText, 1);
+        }
     }
 
     private void startGPTApiRequest(PromptModel model) {
