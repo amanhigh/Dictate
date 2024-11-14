@@ -240,8 +240,8 @@ public class DictateInputMethodService extends InputMethodService {
         });
 
         recordButton.setOnLongClickListener(v -> {
-            vibrate();
             if (!isRecording) {
+                vibrate();
                 startRecording();
             }
             return true; // Return true to indicate that the long press is being handled
