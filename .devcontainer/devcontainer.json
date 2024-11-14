@@ -3,13 +3,15 @@
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "android-dev",
 	"workspaceFolder": "/workspace",
+	"postCreateCommand": "bash .devcontainer/post-create.sh",
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"vscjava.vscode-java-pack",
 				"Codeium.codeium",
 				"YuichiNakamura.code-to-clipboard",
-				"DiemasMichiels.emulate"
+				"Oracle.oracle-java",
+				"saoudrizwan.claude-dev"
 			],
 			"settings": {
 				"java.configuration.updateBuildConfiguration": "automatic"
