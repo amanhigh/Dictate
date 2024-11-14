@@ -240,15 +240,24 @@ public class DictateInputMethodService extends InputMethodService {
         });
 
         recordButton.setOnLongClickListener(v -> {
-            vibrate();
-
-            if (!isRecording) {  // open real settings activity to start file picker
-                Intent intent = new Intent(this, DictateSettingsActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                intent.putExtra("net.devemperor.dictate.open_file_picker", true);
-                startActivity(intent);
+            if (!isRecording) {
+                vibrate();
+                startRecording();
             }
-            return true;
+            return true; // Return true to indicate that the long press is being handled
+        });
+
+        recordButton.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (isRecording) {
+                        stopRecording();
+                    }
+                    return true; // Indicate that the event is being handled
+                default:
+                    return false; // Let other events be handled as usual
+            }
         });
 
         resendButton.setOnClickListener(v -> {
@@ -271,18 +280,7 @@ public class DictateInputMethodService extends InputMethodService {
                 @Override
                 public void run() {
                     if (isDeleting) {
-                        deleteOneCharacter();
-                        long diff = System.currentTimeMillis() - startDeleteTime;
-                        if (diff > 1500 && currentDeleteDelay == 50) {
-                            vibrate();
-                            currentDeleteDelay = 25;
-                        } else if (diff > 3000 && currentDeleteDelay == 25) {
-                            vibrate();
-                            currentDeleteDelay = 10;
-                        } else if (diff > 5000 && currentDeleteDelay == 10) {
-                            vibrate();
-                            currentDeleteDelay = 5;
-                        }
+                        deleteOneWord();
                         deleteHandler.postDelayed(this, currentDeleteDelay);
                     }
                 }
@@ -416,40 +414,6 @@ public class DictateInputMethodService extends InputMethodService {
             return true;
         });
 
-        enterButton.setOnTouchListener((v, event) -> {
-            if (overlayCharactersLl.getVisibility() == View.VISIBLE) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_MOVE:
-                        for (int i = 0; i < overlayCharactersLl.getChildCount(); i++) {
-                            TextView charView = (TextView) overlayCharactersLl.getChildAt(i);
-                            if (isPointInsideView(event.getRawX(), charView)) {
-                                if (selectedCharacter != charView) {
-                                    selectedCharacter = charView;
-                                    highlightSelectedCharacter(selectedCharacter);
-                                }
-                                break;
-                            }
-                        }
-                        break;
-                    case MotionEvent.ACTION_UP:
-                        if (selectedCharacter != null) {
-                            InputConnection inputConnection = getCurrentInputConnection();
-                            if (inputConnection != null) {
-                                inputConnection.commitText(selectedCharacter.getText(), 1);
-                            }
-                            selectedCharacter.setBackground(AppCompatResources.getDrawable(this, R.drawable.border_textview));
-                            selectedCharacter = null;
-                        }
-                        overlayCharactersLl.setVisibility(View.GONE);
-                        return true;
-                    case MotionEvent.ACTION_CANCEL:
-                        overlayCharactersLl.setVisibility(View.GONE);
-                        return true;
-                }
-            }
-            return false;
-        });
-
         // initialize overlay characters
         for (int i = 0; i < 8; i++) {
             TextView charView = (TextView) LayoutInflater.from(context).inflate(R.layout.item_overlay_characters, overlayCharactersLl, false);
@@ -552,7 +516,7 @@ public class DictateInputMethodService extends InputMethodService {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
                 } else {
-                    startGPTApiRequest(model);  // another normal prompt clicked
+                    pastePromptText(model); // Replace startGPTApiRequest with pastePromptText
                 }
             });
             promptsRv.setAdapter(promptsAdapter);
@@ -569,16 +533,7 @@ public class DictateInputMethodService extends InputMethodService {
         }
 
         // fill all overlay characters
-        String charactersString = sp.getString("net.devemperor.dictate.overlay_characters", "()-:!?,.");
-        for (int i = 0; i < overlayCharactersLl.getChildCount(); i++) {
-            TextView charView = (TextView) overlayCharactersLl.getChildAt(i);
-            if (i >= charactersString.length()) {
-                charView.setVisibility(View.GONE);
-            } else {
-                charView.setVisibility(View.VISIBLE);
-                charView.setText(charactersString.substring(i, i + 1));
-            }
-        }
+        initializeOverlayCharacters();
 
         // get the currently selected input language
         inputLanguages = new HashSet<>(Arrays.asList(getResources().getStringArray(R.array.dictate_default_input_languages)));
@@ -636,6 +591,40 @@ public class DictateInputMethodService extends InputMethodService {
             vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK));
         } else {
             vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE));
+        }
+    }
+
+    private void initializeOverlayCharacters() {
+        String charactersString = sp.getString("net.devemperor.dictate.overlay_characters", "()-:!?,.");
+        if (!charactersString.contains("X")) {
+            charactersString += "X";
+        }
+    
+        for (int i = 0; i < overlayCharactersLl.getChildCount(); i++) {
+            TextView charView = (TextView) overlayCharactersLl.getChildAt(i);
+            if (i >= charactersString.length()) {
+                charView.setVisibility(View.GONE);
+            } else {
+                charView.setVisibility(View.VISIBLE);
+                if (i == charactersString.length() - 1) {
+                    // Make the X button special
+                    charView.setText("✕");
+                    charView.setOnClickListener(v -> {
+                        vibrate();
+                        overlayCharactersLl.setVisibility(View.GONE);
+                    });
+                } else {
+                    final String character = charactersString.substring(i, i + 1);
+                    charView.setText(character);
+                    charView.setOnClickListener(v -> {
+                        vibrate();
+                        InputConnection inputConnection = getCurrentInputConnection();
+                        if (inputConnection != null) {
+                            inputConnection.commitText(character, 1);
+                        }
+                    });
+                }
+            }
         }
     }
 
@@ -806,6 +795,22 @@ public class DictateInputMethodService extends InputMethodService {
                 recordButton.setEnabled(true);
             });
         });
+    }
+
+    private void pastePromptText(PromptModel model) {
+        InputConnection inputConnection = getCurrentInputConnection();
+        if (inputConnection != null) {
+            String selectedText = inputConnection.getSelectedText(0).toString();
+            
+            // Get the prompt text from the model
+            String promptText = model.getPrompt();
+            
+            // Replace selected text with prompt text
+            if (selectedText != null && !selectedText.isEmpty()) {
+                inputConnection.deleteSurroundingText(selectedText.length(), 0);
+            }
+            inputConnection.commitText(promptText, 1);
+        }
     }
 
     private void startGPTApiRequest(PromptModel model) {
@@ -1029,6 +1034,32 @@ public class DictateInputMethodService extends InputMethodService {
                 inputConnection.commitText("", 1);
             } else {
                 inputConnection.deleteSurroundingText(1, 0);
+            }
+        }
+    }
+
+    private void deleteOneWord() {
+        InputConnection inputConnection = getCurrentInputConnection();
+        if (inputConnection != null) {
+            CharSequence beforeCursor = inputConnection.getTextBeforeCursor(50, 0);
+            if (beforeCursor != null && beforeCursor.length() > 0) {
+                // Find the last word boundary
+                int deleteLength = 0;
+                boolean foundWord = false;
+                
+                for (int i = beforeCursor.length() - 1; i >= 0; i--) {
+                    char c = beforeCursor.charAt(i);
+                    if (!Character.isWhitespace(c)) {
+                        foundWord = true;
+                    }
+                    if (foundWord && Character.isWhitespace(c)) {
+                        break;
+                    }
+                    deleteLength++;
+                }
+                
+                // Delete the word
+                inputConnection.deleteSurroundingText(deleteLength, 0);
             }
         }
     }
